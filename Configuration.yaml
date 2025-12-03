@@ -1,0 +1,62 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.30.32.1
+    - 172.30.32.2
+template:
+  - sensor:
+      - name: "irrigation_weather_condition"
+        state: >
+          {% set max_temp = states('input_number.forecast_max_temperature') | float(20) %}
+          {% set min_temp = states('input_number.forecast_min_temperature') | float(10) %}
+          {% set rain = states('input_number.forecast_rain_amount') | float(0) %}
+          {% if rain > 5 %}
+            extreme_rain
+          {% elif max_temp > 30 %}
+            hot
+          {% elif min_temp < 5 %}
+            cold
+          {% elif rain > 0 and rain <= 5 %}
+            little_rain
+          {% else %}
+            normal
+          {% endif %}
+        attributes:
+          max_temp: "{{ states('input_number.forecast_max_temperature') | float(20) }}"
+          min_temp: "{{ states('input_number.forecast_min_temperature') | float(10) }}"
+          rain: "{{ states('input_number.forecast_rain_amount') | float(0) }}"
+          sprinkler_duration: >
+            {% set condition = states('sensor.irrigation_weather_condition') %}
+            {% if condition == 'extreme_rain' %}0
+            {% elif condition == 'hot' %}10
+            {% elif condition == 'cold' %}6
+            {% else %}7
+            {% endif %}
+          drip_duration: >
+            {% set condition = states('sensor.irrigation_weather_condition') %}
+            {% if condition == 'extreme_rain' %}0
+            {% elif condition == 'hot' %}33
+            {% elif condition == 'cold' %}15
+            {% else %}18
+            {% endif %}
+
+  - binary_sensor:
+      - name: "irrigation_should_run"
+        state: >
+          {{ states('sensor.irrigation_weather_condition') != 'extreme_rain' }}
+
+homeassistant:
+  packages: !include_dir_named packages
+  internal_url: http://homeassistant.local:8123
+  external_url: http://homeassistant.tail4643e5.ts.net:8123
