@@ -1,0 +1,47 @@
+version: 4
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt:192.168.1.18:1883
+  user: Irrigation
+  password: Welcome@CH-Thejesh
+serial:
+  port: tcp://192.168.1.17:6638
+  adapter: zstack
+  baudrate: 115200
+  rtscts: true
+advanced:
+  log_level: info
+  channel: 11
+  network_key:
+    - 190
+    - 185
+    - 254
+    - 101
+    - 133
+    - 172
+    - 108
+    - 156
+    - 110
+    - 207
+    - 242
+    - 43
+    - 145
+    - 197
+    - 182
+    - 171
+  pan_id: 47708
+  ext_pan_id:
+    - 154
+    - 91
+    - 57
+    - 184
+    - 241
+    - 0
+    - 35
+    - 66
+frontend:
+  enabled: true
+  port: 8099
+homeassistant:
+  enabled: true
+onboarding: true
