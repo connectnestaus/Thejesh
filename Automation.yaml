@@ -1,0 +1,246 @@
+- id: '1756392774797'
+  alias: Irrigation Backup Safety
+  description: Emergency stop for irrigation systems
+  triggers:
+  - entity_id:
+    - switch.473ec82f004b1200_1_water_switch
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 15
+      seconds: 0
+    trigger: state
+  - entity_id:
+    - switch.473ec82f004b1200_2_water_switch
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 45
+      seconds: 0
+    trigger: state
+  actions:
+  - action: switch.turn_off
+    data: {}
+    target:
+      entity_id:
+      - switch.473ec82f004b1200_1_water_switch
+      - switch.473ec82f004b1200_2_water_switch
+  - action: notify.mobile_app_tej
+    data:
+      message: Irrigation system stopped due to excessive runtime
+      title: ⚠️ Irrigation Emergency Stop
+- id: '1756393114601'
+  alias: No Irrigation Due to Rain
+  description: ''
+  triggers:
+  - event: sunrise
+    offset: -00:30:00
+    trigger: sun
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.irrigation_should_run
+    state: 'off'
+  actions:
+  - action: notify.mobile_app_tej
+    data:
+      title: Heavy rain expected. Irrigation skipped.
+      message: ❌ No Irrigation Today
+  - target:
+      entity_id: input_text.irrigation_status
+    data:
+      value: Skipped - Heavy rain
+    action: input_text.set_value
+- id: '1756393544689'
+  alias: Smart Garden Irrigation System
+  description: Complete weather-based irrigation - runs at sunrise and sunset using
+    min temperature logic
+  triggers:
+  - event: sunrise
+    trigger: sun
+    id: morning
+  - event: sunset
+    trigger: sun
+    id: evening
+  actions:
+  - action: weather.get_forecasts
+    data:
+      type: daily
+    target:
+      entity_id: weather.openweathermap
+    response_variable: daily_forecast
+  - variables:
+      is_morning: '{{ trigger.id == ''morning'' }}'
+      is_evening: '{{ trigger.id == ''evening'' }}'
+      min_temp: '{{ daily_forecast[''weather.openweathermap''].forecast[0].templow
+        | float(0) }}'
+      forecasted_rain: '{{ daily_forecast[''weather.openweathermap''].forecast[0].precipitation
+        | float(0) }}'
+      should_skip_rain: '{{ forecasted_rain > 5.0 }}'
+      has_rain_forecast: '{{ forecasted_rain > 0 }}'
+      temp_diff: '{{ ((min_temp - 12) / 2) | round(0, ''floor'') | int }}'
+      base_sprinkler: '{% set base = 8 + temp_diff %} {% if base < 2 %}2{% elif base
+        > 20 %}20{% else %}{{ base }}{% endif %}'
+      base_drip: '{% set base = 30 + (temp_diff * 2) %} {% if base < 10 %}10{% elif
+        base > 60 %}60{% else %}{{ base }}{% endif %}'
+      sprinkler_duration: "{% if should_skip_rain %}\n  0\n{% else %}\n  {% set rain_reduction
+        = forecasted_rain | int %}\n  {% set final = (base_sprinkler | int) - rain_reduction
+        %}\n  {% if final < 1 %}1{% else %}{{ final }}{% endif %}\n{% endif %}"
+      drip_duration: "{% if should_skip_rain %}\n  0\n{% else %}\n  {% set rain_reduction
+        = (forecasted_rain * 2) | int %}\n  {% set final = (base_drip | int) - rain_reduction
+        %}\n  {% if final < 2 %}2{% else %}{{ final }}{% endif %}\n{% endif %}"
+  - condition: template
+    value_template: "{{ daily_forecast is defined and \n   'weather.openweathermap'
+      in daily_forecast and\n   daily_forecast['weather.openweathermap'].forecast|length
+      > 0 and\n   daily_forecast['weather.openweathermap'].forecast[0].templow is
+      defined and\n   daily_forecast['weather.openweathermap'].forecast[0].precipitation
+      is defined and\n   min_temp > 1 }}"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ should_skip_rain }}'
+      sequence:
+      - action: notify.mobile_app_tej
+        data:
+          message: Heavy rain expected ({{ forecasted_rain }}mm > 5mm threshold).
+            {% if is_morning %}Morning{% else %}Evening{% endif %} irrigation skipped
+            completely.
+          title: "{% if is_morning %}\U0001F305 No Morning Irrigation{% else %}\U0001F307
+            No Evening Irrigation{% endif %}"
+      - action: input_text.set_value
+        data:
+          entity_id: input_text.irrigation_status
+          value: '{% if is_morning %}AM{% else %}PM{% endif %} Skipped - Heavy rain
+            ({{ forecasted_rain }}mm)'
+    - conditions:
+      - condition: template
+        value_template: '{{ not should_skip_rain }}'
+      sequence:
+      - action: notify.mobile_app_tej
+        data:
+          message: 'Min Temp: {{ min_temp }}°C | Rain: {{ forecasted_rain }}mm  Base:
+            S{{ base_sprinkler }}/D{{ base_drip }}min → Final: S{{ sprinkler_duration
+            }}/D{{ drip_duration }}min {% if has_rain_forecast %}(Reduced by {{ forecasted_rain
+            }}mm rain){% endif %}'
+          title: "{% if is_morning %}\U0001F305 Morning Irrigation Starting{% else
+            %}\U0001F307 Evening Irrigation Starting{% endif %}"
+      - action: input_text.set_value
+        data:
+          entity_id: input_text.irrigation_status
+          value: '{% if is_morning %}AM{% else %}PM{% endif %} Running - S{{ sprinkler_duration
+            }}/D{{ drip_duration }}min'
+      - parallel:
+        - sequence:
+          - condition: template
+            value_template: '{{ sprinkler_duration > 0 }}'
+          - action: switch.turn_on
+            target:
+              entity_id: switch.473ec82f004b1200_1_water_switch
+            data: {}
+          - delay: '{{ ''00:%02d:00'' | format(sprinkler_duration) }}'
+          - action: switch.turn_off
+            target:
+              entity_id:
+              - switch.473ec82f004b1200_1_water_switch
+            data: {}
+          - action: notify.mobile_app_tej
+            data:
+              message: Sprinkler completed {{ sprinkler_duration }} minutes
+              title: "{% if is_morning %}\U0001F305 Morning Sprinkler Finished{% else
+                %} \U0001F307 Evening Sprinkler Finished{% endif %}"
+        - sequence:
+          - condition: template
+            value_template: '{{ drip_duration > 0 }}'
+          - action: switch.turn_on
+            target:
+              entity_id:
+              - switch.473ec82f004b1200_2_water_switch
+            data: {}
+          - delay: '{{ ''00:%02d:00'' | format(drip_duration) }}'
+          - action: switch.turn_off
+            target:
+              entity_id:
+              - switch.473ec82f004b1200_2_water_switch
+            data: {}
+          - action: notify.mobile_app_tej
+            data:
+              message: Drip system completed {{ drip_duration }} minutes
+              title: "{% if is_morning %}\U0001F305 Morning Drip Finished{% else %}\U0001F307
+                Evening Drip Finished{% endif %}"
+      - action: notify.mobile_app_tej
+        data:
+          message: 'Finished at {{ min_temp }}°C with {{ forecasted_rain }}mm rain
+            - Sprinkler: {{ sprinkler_duration }}min, Drip: {{ drip_duration }}min'
+          title: '{% if is_morning %}✅ Morning Irrigation Complete{% else %}✅ Evening
+            Irrigation Complete{% endif %}'
+      - action: input_text.set_value
+        data:
+          entity_id: input_text.irrigation_status
+          value: Complete {{ now().strftime('%I:%M') }} {% if is_morning %}AM{% else
+            %}PM{% endif %}
+  mode: queued
+  max: 2
+- id: '1756394950984'
+  alias: Update Weather Forecast for Irrigation
+  description: Fetch daily forecast data for irrigation decisions
+  triggers:
+  - trigger: sun
+    event: sunrise
+    offset: '1:00:00'
+  - trigger: sun
+    event: sunset
+    offset: '1:00:00'
+  - event: start
+    trigger: homeassistant
+  conditions:
+  - condition: state
+    entity_id: weather.openweathermap
+    state:
+    - sunny
+    - cloudy
+    - partlycloudy
+    - overcast
+    - rainy
+    - snowy
+    - fog
+  actions:
+  - data:
+      type: daily
+    target:
+      entity_id: weather.openweathermap
+    response_variable: daily_forecast
+    action: weather.get_forecasts
+  - if:
+    - condition: template
+      value_template: '{{ daily_forecast is defined and ''weather.openweathermap''
+        in daily_forecast }}'
+    then:
+    - target:
+        entity_id:
+        - input_number.forecast_max_temperature
+      data:
+        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
+          %} {% if forecast|length > 0 %}\n  {{ forecast[0].temperature | float }}\n{%
+          else %}\n  {{ state_attr('weather.openweathermap', 'temperature') | float
+          }}\n{% endif %}\n"
+      action: input_number.set_value
+    - target:
+        entity_id:
+        - input_number.forecast_min_temperature
+      data:
+        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
+          %} {% if forecast|length > 0 %}\n  {{ forecast[0].templow | float }}\n{%
+          else %}\n  {{ state_attr('weather.openweathermap', 'temperature') | float
+          }}\n{% endif %}\n"
+      action: input_number.set_value
+    - target:
+        entity_id: input_number.forecast_rain_amount
+      data:
+        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
+          %} {% if forecast|length > 0 and forecast[0].precipitation is defined %}\n
+          \ {{ forecast[0].precipitation | float }}\n{% else %}\n  0\n{% endif %}\n"
+      action: input_number.set_value
+    - target:
+        entity_id: input_text.forecast_data_storage
+      data:
+        value: '{{ daily_forecast[''weather.openweathermap''].forecast | to_json }}'
+      action: input_text.set_value
