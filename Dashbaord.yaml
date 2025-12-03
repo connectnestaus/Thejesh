@@ -1,0 +1,187 @@
+views:
+  - title: Home
+    path: default_view
+    cards:
+      - type: custom:weather-chart-card
+        entity: weather.openweathermap
+        show_main: true
+        show_temperature: true
+        show_current_condition: true
+        show_attributes: true
+        show_time: true
+        show_time_seconds: false
+        show_day: true
+        show_date: true
+        show_humidity: true
+        show_pressure: true
+        show_wind_direction: true
+        show_wind_speed: true
+        show_sun: true
+        show_feels_like: true
+        show_dew_point: true
+        show_wind_gust_speed: true
+        show_visibility: false
+        show_last_changed: true
+        use_12hour_format: true
+        icons_size: 25
+        animated_icons: false
+        icon_style: style1
+        autoscroll: true
+        forecast:
+          precipitation_type: rainfall
+          show_probability: false
+          labels_font_size: '11'
+          precip_bar_size: '100'
+          style: style2
+          show_wind_forecast: true
+          condition_icons: true
+          round_temp: false
+          type: daily
+          number_of_forecasts: '0'
+          disable_animation: false
+        units:
+          speed: ''
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: >
+              ## 🌱 📊 Smart Irrigation Intelligence Analytics & Insights
+
+
+              {% set sprinkler_state = states('switch.valve_garden_sprinkler')
+              %}
+
+              {% set drip_state = states('switch.valve_garden_drip') %}
+
+              {% set rain_forecast = states('input_number.garden_rain_forecast')
+              | float(0) %}
+
+              {% set min_temp = states('input_number.forc_min_temp') | float(0)
+              %}
+
+              {% set max_temp = states('input_number.forc_max_temp') | float(0)
+              %}
+
+              {% set weather = states('weather.bom_melbourne') %}
+
+
+              ### 🚿 **Current Status:**
+
+              {% if sprinkler_state == 'on' and drip_state == 'on' %}
+                🔵 **BOTH SYSTEMS ACTIVE** 🚿💧 - Full irrigation in progress
+              {% elif sprinkler_state == 'on' %}
+                🔵 **SPRINKLER RUNNING** 🚿 - Duration: {{ states('sensor.zone1_irrigation_duration') }}
+              {% elif drip_state == 'on' %}
+                🔵 **DRIP SYSTEM RUNNING** 💧 - Duration: {{ states('sensor.zone2_drip_duration') }}
+              {% else %}
+                ⭕ **SYSTEM IDLE** - Next run at {{ states('sensor.sun_next_dusk').split('T')[1][:5] if 'T' in states('sensor.sun_next_dusk') else 'sunset' }}
+              {% endif %}
+
+
+              ### 🤖 **AI Recommendations:**
+
+              {% if rain_forecast > 15 %}
+                ❌ **SKIP IRRIGATION** - Heavy rain forecast ({{ rain_forecast }}mm)
+              {% elif rain_forecast > 8 %}
+                ⚠️ **REDUCE 50%** - Moderate rain likely ({{ rain_forecast }}mm)
+              {% elif rain_forecast > 3 %}
+                ⚠️ **REDUCE 25%** - Light rain possible ({{ rain_forecast }}mm)
+              {% elif max_temp > 35 %}
+                🔥 **EXTEND +50%** - Very hot day ({{ max_temp }}°C)
+              {% elif max_temp > 30 %}
+                🌡️ **EXTEND +25%** - Hot day ({{ max_temp }}°C)
+              {% elif max_temp < 15 %}
+                ❄️ **REDUCE 30%** - Cool day ({{ max_temp }}°C)
+              {% else %}
+                ✅ **NORMAL CYCLE** - Perfect conditions ({{ min_temp }}°-{{ max_temp }}°C)
+              {% endif %}
+
+
+              **📅 Last Watered:** {{ states('input_text.garden_last_watered')
+              }}
+
+
+              {% set sprinkler_battery =
+              states('sensor.valve_garden_sprinkler_battery') | int(100) %}
+
+              {% set drip_battery = states('sensor.valve_garden_drip_battery') |
+              int(100) %}
+
+              {% set rain_today = rain_forecast %}
+
+              {% set temp_range = max_temp - min_temp %}
+
+
+              ### 🔋 **Battery Health:**
+
+              {% if sprinkler_battery < 15 or drip_battery < 15 %}
+                🚨 **CRITICAL** - Replace batteries immediately!
+              {% elif sprinkler_battery < 30 or drip_battery < 30 %}
+                ⚠️ **LOW** - Plan battery replacement within 1-2 weeks
+              {% elif sprinkler_battery < 50 or drip_battery < 50 %}
+                🟡 **MONITOR** - Check batteries in next service
+              {% else %}
+                ✅ **EXCELLENT** - Batteries healthy for months
+              {% endif %}
+
+
+              ### 🌡️ **Weather Impact:**
+
+              {% if temp_range > 20 %}
+                🌡️ **High temperature variation** - Consider split watering times
+              {% elif rain_today > 0 %}
+                🌧️ **Rain assistance** - Natural irrigation supplement
+              {% else %}
+                ☀️ **Manual irrigation needed** - No natural water expected
+              {% endif %}
+
+
+              ### ⏰ **Next Scheduled Actions:**
+
+              - **Irrigation Window**: 30min after sunset ({{
+              states('sensor.sun_next_dusk').split('T')[1][:5] if 'T' in
+              states('sensor.sun_next_dusk') else 'Unknown' }})
+
+              - **Duration**: Auto-calculated based on weather
+
+              - **Battery Check**: {{ 'This weekend' if sprinkler_battery < 50
+              or drip_battery < 50 else 'Next month' }}
+
+
+              ---
+
+              *🤖 Intelligent watering since {{
+              states('input_text.garden_last_watered') }} • Updated {{
+              now().strftime('%H:%M') }}*
+          - type: entities
+            title: 🌱 Smart Irrigation System
+            entities:
+              - entity: sensor.openweathermap_weather
+                name: Weather Condition
+              - entity: input_number.forecast_min_temperature
+                name: Min Temperature
+              - entity: input_number.forecast_max_temperature
+                name: Max Temperature
+              - entity: input_number.forecast_rain_amount
+                name: Rain Forecast
+              - entity: input_text.irrigation_status
+                name: Last Irrigation
+              - entity: sensor.sun_next_dusk
+                name: Next Sunrise/Sunset
+              - type: divider
+              - entity: sensor.473ec82f004b1200_1_volume
+                name: Sprinkler Last Volume (L)
+              - entity: sensor.473ec82f004b1200_2_volume
+                name: Drip Last Volume (L)
+              - type: divider
+              - entity: switch.473ec82f004b1200_1_water_switch
+                name: Sprinkler
+              - entity: switch.473ec82f004b1200_2_water_switch
+                name: Drip System
+              - entity: sensor.473ec82f004b1200_1_remain_duration
+                name: Sprinkler Duration
+              - entity: sensor.473ec82f004b1200_2_remain_duration
+                name: Drip Duration
+              - type: divider
+              - entity: input_boolean.test_irrigation
+                name: Test Irrigation
