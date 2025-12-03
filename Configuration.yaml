@@ -60,3 +60,14 @@ homeassistant:
   packages: !include_dir_named packages
   internal_url: http://homeassistant.local:8123
   external_url: http://homeassistant.tail4643e5.ts.net:8123
+
+input_datetime:
+  irrigation_1_start:
+    name: Irrigation 1 Start Time
+    has_date: true
+    has_time: true
+
+  irrigation_2_start:
+    name: Irrigation 2 Start Time
+    has_date: true
+    has_time: true
