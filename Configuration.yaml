@@ -2,6 +2,10 @@
 default_config:
 
 # Load frontend themes from the themes folder
+homeassistant:
+  internal_url: http://homeassistant-1.local:8123
+  external_url: http://homeassistant-1.tail5db9c7.ts.net:8123
+
 frontend:
   themes: !include_dir_merge_named themes
 
@@ -14,6 +18,7 @@ http:
   trusted_proxies:
     - 172.30.32.1
     - 172.30.32.2
+    - 127.0.0.1
 template:
   - sensor:
       - name: "irrigation_weather_condition"
@@ -55,11 +60,6 @@ template:
       - name: "irrigation_should_run"
         state: >
           {{ states('sensor.irrigation_weather_condition') != 'extreme_rain' }}
-
-homeassistant:
-  packages: !include_dir_named packages
-  internal_url: http://homeassistant.local:8123
-  external_url: http://homeassistant.tail4643e5.ts.net:8123
 
 input_datetime:
   irrigation_1_start:
