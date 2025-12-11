@@ -3,7 +3,7 @@ views:
     path: default_view
     cards:
       - type: custom:weather-chart-card
-        entity: weather.openweathermap
+        entity: weather.forecast_home
         show_main: true
         show_temperature: true
         show_current_condition: true
@@ -156,7 +156,7 @@ views:
           - type: entities
             title: 🌱 Smart Irrigation System
             entities:
-              - entity: sensor.openweathermap_weather
+              - entity: weather.forecast_home
                 name: Weather Condition
               - entity: input_number.forecast_min_temperature
                 name: Min Temperature
