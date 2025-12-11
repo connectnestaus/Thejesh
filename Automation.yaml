@@ -3,77 +3,41 @@
   description: Emergency stop for irrigation systems
   triggers:
   - trigger: state
-    entity_id: switch.473ec82f004b1200_1_water_switch
-    to: 'on'
-    id: sprinkler_start
+    entity_id:
+    - switch.473ec82f004b1200_1_water_switch
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
   - trigger: state
-    entity_id: switch.473ec82f004b1200_2_water_switch
-    to: 'on'
-    id: drip_start
-  - trigger: time_pattern
-    minutes: /1
-    id: check_runtime
+    entity_id:
+    - switch.473ec82f004b1200_2_water_switch
+    to:
+    - 'on'
+    for:
+      hours: 1
+      minutes: 0
+      seconds: 0
   actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id: sprinkler_start
-      sequence:
-      - action: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.irrigation_1_start
-        data:
-          datetime: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }}'
-    - conditions:
-      - condition: trigger
-        id: drip_start
-      sequence:
-      - action: input_datetime.set_datetime
-        target:
-          entity_id: input_datetime.irrigation_2_start
-        data:
-          datetime: '{{ now().strftime(''%Y-%m-%d %H:%M:%S'') }}'
-    - conditions:
-      - condition: trigger
-        id: check_runtime
-      sequence:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: switch.473ec82f004b1200_1_water_switch
-            state: 'on'
-          - condition: template
-            value_template: "{% set started = states('input_datetime.irrigation_1_start')
-              %} {% if started in ('unknown','unavailable','') %}\n  false\n{% else
-              %}\n  {{ (now() - strptime(started, '%Y-%m-%d %H:%M:%S')).total_seconds()
-              > 15*60 }}\n{% endif %}\n"
-          sequence:
-          - action: switch.turn_off
-            target:
-              entity_id: switch.473ec82f004b1200_1_water_switch
-          - action: notify.mobile_app_tej
-            data:
-              title: ⚠️ Sprinkler Forced Emergency Stop
-              message: Sprinkler exceeded 15-minute safe runtime.
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: switch.473ec82f004b1200_2_water_switch
-            state: 'on'
-          - condition: template
-            value_template: "{% set started = states('input_datetime.irrigation_2_start')
-              %} {% if started in ('unknown','unavailable','') %}\n  false\n{% else
-              %}\n  {{ (now() - strptime(started, '%Y-%m-%d %H:%M:%S')).total_seconds()
-              > 45*60 }}\n{% endif %}\n"
-          sequence:
-          - action: switch.turn_off
-            target:
-              entity_id: switch.473ec82f004b1200_2_water_switch
-          - action: notify.mobile_app_tej
-            data:
-              title: ⚠️ Drip Forced Emergency Stop
-              message: Drip system exceeded 45-minute safe runtime.
-  mode: single
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id:
+      - switch.473ec82f004b1200_1_water_switch
+      - switch.473ec82f004b1200_2_water_switch
+    data: {}
+  - action: notify.mobile_app_tej
+    metadata: {}
+    data:
+      message: Irrigation system stopped due to excessive runtime
+      title: ⚠️ Irrigation Emergency Stop
+  - action: notify.mobile_app_thejesh_iphone
+    metadata: {}
+    data:
+      message: Irrigation system stopped due to excessive runtime
+      title: ⚠️ Irrigation Emergency Stop
 - id: '1756393114601'
   alias: No Irrigation Due to Rain
   description: ''
@@ -113,16 +77,16 @@
     data:
       type: daily
     target:
-      entity_id: weather.openweathermap
+      entity_id: weather.home
     response_variable: daily_forecast
   - variables:
       is_morning: '{{ trigger.id == ''morning'' }}'
       is_evening: '{{ trigger.id == ''evening'' }}'
-      min_temp: '{{ daily_forecast[''weather.openweathermap''].forecast[0].templow
-        | float(0) }}
+      min_temp: '{{ daily_forecast[''weather.home''].forecast[0].templow | float(0)
+        }}
 
         '
-      forecasted_rain: '{{ daily_forecast[''weather.openweathermap''].forecast[0].precipitation
+      forecasted_rain: '{{ daily_forecast[''weather.home''].forecast[0].precipitation
         | float(0) }}
 
         '
@@ -144,10 +108,9 @@
         = (forecasted_rain * 2) | int %}\n  {% set final = (base_drip | int) - rain_reduction
         %}\n  {% if final < 2 %}2{% else %}{{ final }}{% endif %}\n{% endif %}\n"
   - condition: template
-    value_template: "{{ daily_forecast is defined and\n   'weather.openweathermap'
-      in daily_forecast and\n   daily_forecast['weather.openweathermap'].forecast|length
-      > 0 and\n   daily_forecast['weather.openweathermap'].forecast[0].templow is
-      defined and\n   daily_forecast['weather.openweathermap'].forecast[0].precipitation
+    value_template: "{{ daily_forecast is defined and\n   'weather.home' in daily_forecast
+      and\n   daily_forecast['weather.home'].forecast|length > 0 and\n   daily_forecast['weather.home'].forecast[0].templow
+      is defined and\n   daily_forecast['weather.home'].forecast[0].precipitation
       is defined and\n   min_temp > 1 }}\n"
   - choose:
     - conditions:
@@ -247,17 +210,13 @@
   alias: Update Weather Forecast for Irrigation
   description: Fetch daily forecast data for irrigation decisions
   triggers:
-  - trigger: sun
-    event: sunrise
-    offset: '1:00:00'
-  - trigger: sun
-    event: sunset
-    offset: '1:00:00'
+  - trigger: time_pattern
+    hours: /1
   - event: start
     trigger: homeassistant
   conditions:
   - condition: state
-    entity_id: weather.openweathermap
+    entity_id: weather.home
     state:
     - sunny
     - cloudy
@@ -270,41 +229,40 @@
   - data:
       type: daily
     target:
-      entity_id: weather.openweathermap
+      entity_id: weather.home
     response_variable: daily_forecast
     action: weather.get_forecasts
   - if:
     - condition: template
-      value_template: '{{ daily_forecast is defined and ''weather.openweathermap''
-        in daily_forecast }}'
+      value_template: '{{ daily_forecast is defined and ''weather.home'' in daily_forecast
+        }}'
     then:
     - target:
         entity_id:
         - input_number.forecast_max_temperature
       data:
-        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
-          %} {% if forecast|length > 0 %}\n  {{ forecast[0].temperature | float }}\n{%
-          else %}\n  {{ state_attr('weather.openweathermap', 'temperature') | float
-          }}\n{% endif %}\n"
+        value: "{% set forecast = daily_forecast['weather.home'].forecast %} {% if
+          forecast|length > 0 %}\n  {{ forecast[0].temperature | float }}\n{% else
+          %}\n  {{ state_attr('weather.home', 'temperature') | float }}\n{% endif
+          %}\n"
       action: input_number.set_value
     - target:
         entity_id:
         - input_number.forecast_min_temperature
       data:
-        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
-          %} {% if forecast|length > 0 %}\n  {{ forecast[0].templow | float }}\n{%
-          else %}\n  {{ state_attr('weather.openweathermap', 'temperature') | float
-          }}\n{% endif %}\n"
+        value: "{% set forecast = daily_forecast['weather.home'].forecast %} {% if
+          forecast|length > 0 %}\n  {{ forecast[0].templow | float }}\n{% else %}\n
+          \ {{ state_attr('weather.home', 'temperature') | float }}\n{% endif %}\n"
       action: input_number.set_value
     - target:
         entity_id: input_number.forecast_rain_amount
       data:
-        value: "{% set forecast = daily_forecast['weather.openweathermap'].forecast
-          %} {% if forecast|length > 0 and forecast[0].precipitation is defined %}\n
-          \ {{ forecast[0].precipitation | float }}\n{% else %}\n  0\n{% endif %}\n"
+        value: "{% set forecast = daily_forecast['weather.home'].forecast %} {% if
+          forecast|length > 0 and forecast[0].precipitation is defined %}\n  {{ forecast[0].precipitation
+          | float }}\n{% else %}\n  0\n{% endif %}\n"
       action: input_number.set_value
     - target:
         entity_id: input_text.forecast_data_storage
       data:
-        value: '{{ daily_forecast[''weather.openweathermap''].forecast | to_json }}'
+        value: '{{ daily_forecast[''weather.home''].forecast | to_json }}'
       action: input_text.set_value
